@@ -9,6 +9,8 @@ export function Pill({ label, active, night, onPress, badge }: Props) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
       accessibilityState={{ selected: !!active }}
       style={({ pressed }) => [
         styles.pill,
@@ -22,7 +24,7 @@ export function Pill({ label, active, night, onPress, badge }: Props) {
 }
 
 const styles = StyleSheet.create({
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 10, minHeight: 40, borderRadius: 20, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   text: { fontSize: 13, fontWeight: '600' },
   badge: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 });
