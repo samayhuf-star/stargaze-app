@@ -6,15 +6,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { InfoCard } from '../components/InfoCard';
+import { AlignBar } from '../components/AlignBar';
+import { FindSheet } from '../components/FindSheet';
+import { GuideOverlay } from '../components/GuideOverlay';
 import { Pill } from '../components/Pill';
+import rawSky from '../data/sky-data.json';
 import { useObserver } from '../lib/location';
 import { useDeviceView } from '../lib/orientation';
 import { usePro } from '../lib/purchases';
 import { SkyCanvas, type SkyOptions } from '../sky/SkyCanvas';
-import { clampAlt } from '../sky/projection';
+import { buildCatalog, computeAlign, guideTo, locateEntry, pickAlignTarget, type SearchEntry } from '../sky/align';
+import { clampAlt, makeProjector } from '../sky/projection';
 import { COLORS, NIGHT_RED } from '../sky/theme';
-import type { SkyObject, View as SkyView } from '../sky/types';
+import type { SkyData, SkyObject, View as SkyView } from '../sky/types';
 
+const sky = rawSky as unknown as SkyData;
 const FREE_TIME_LIMIT_MIN = 60;
 const FREE_MAG = 4.5;
 const PRO_MAG = 5.5;
@@ -35,12 +41,17 @@ export default function SkyScreen() {
   const [dsos, setDsos] = useState(false);
   const [invertTilt, setInvertTilt] = useState(false);
   const [headingOffset, setHeadingOffset] = useState(0);
+  const [altOffset, setAltOffset] = useState(0);
+  const [aligning, setAligning] = useState(false);
+  const [alignTarget, setAlignTarget] = useState<SkyObject | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findEntry, setFindEntry] = useState<SearchEntry | null>(null);
   const [offsetMin, setOffsetMin] = useState(0);
   const [selected, setSelected] = useState<SkyObject | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
-  const device = useDeviceView(live, invertTilt, headingOffset);
+  const device = useDeviceView(live, invertTilt, headingOffset, altOffset);
   const [manual, setManual] = useState<SkyView>({ az: 180, alt: 35, fov: 60 });
   const [fov, setFov] = useState(60);
 
@@ -101,6 +112,53 @@ export default function SkyScreen() {
   );
 
   const date = useMemo(() => new Date(now + offsetMin * 60000), [now, offsetMin]);
+  const catalog = useMemo(() => buildCatalog(sky), []);
+  const minuteKey = Math.floor(date.getTime() / 60000);
+  const findTarget = useMemo(
+    () => (findEntry ? locateEntry(sky, findEntry, new Date(minuteKey * 60000), observer) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [findEntry, minuteKey, observer.lat.toFixed(2), observer.lon.toFixed(2)],
+  );
+
+  const startAlign = useCallback(() => {
+    if (!live) setLive(true);
+    setOffsetMin(0);
+    setSelected(null);
+    setAlignTarget(pickAlignTarget(sky, new Date(), observer));
+    setAligning(true);
+  }, [live, observer]);
+
+  const confirmAlign = useCallback(() => {
+    if (!alignTarget || device.status !== 'ok') return;
+    const r = computeAlign(alignTarget, device.az, device.alt, { headingOffset, altOffset, invertTilt });
+    setHeadingOffset(r.headingOffset);
+    setAltOffset(r.altOffset);
+    setInvertTilt(r.invertTilt);
+    setAligning(false);
+    setAlignTarget(null);
+  }, [alignTarget, device, headingOffset, altOffset, invertTilt]);
+
+  const cancelAlign = useCallback(() => {
+    setAligning(false);
+    setAlignTarget(null);
+  }, []);
+
+  const pickFind = useCallback(
+    (e: SearchEntry) => {
+      setFindOpen(false);
+      setFindEntry(e);
+      const t = locateEntry(sky, e, new Date(now + offsetMin * 60000), observer);
+      if (t && t.alt >= 0) {
+        setSelected(t);
+        // Without live sensors, jump the map straight to the object.
+        if (!(live && device.status === 'ok')) {
+          setLive(false);
+          setManual({ az: t.az, alt: clampAlt(t.alt), fov });
+        }
+      }
+    },
+    [now, offsetMin, observer, live, device.status, fov],
+  );
 
   const toggleCamera = useCallback(async () => {
     if (camera) return setCamera(false);
@@ -148,9 +206,16 @@ export default function SkyScreen() {
         date={date}
         observer={observer}
         options={options}
-        selectedId={selected?.id ?? null}
+        selectedId={aligning ? alignTarget?.id ?? null : selected?.id ?? findTarget?.id ?? null}
         onSelect={setSelected}
       />
+
+      {findTarget && !aligning && (() => {
+        const p = makeProjector(view, width, height).project(findTarget.v);
+        const onScreen = !!p && p.x > 20 && p.x < width - 20 && p.y > 20 && p.y < height - 20;
+        return <GuideOverlay name={findTarget.name} guide={onScreen ? null : guideTo(view, findTarget)} below={findTarget.alt < 0} night={night} onClear={() => setFindEntry(null)} />;
+      })()}
+      {aligning && <AlignBar targetName={alignTarget?.name ?? null} night={night} onConfirm={confirmAlign} onCancel={cancelAlign} />}
 
       {/* Top bar */}
       <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
@@ -202,6 +267,8 @@ export default function SkyScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills}>
           <Pill label={live ? 'Live' : 'Drag'} active={live} night={night} onPress={() => setLive((l) => !l)} />
           <Pill label="Camera" active={showCamera} night={night} onPress={toggleCamera} />
+          <Pill label="Find" night={night} onPress={() => setFindOpen(true)} />
+          <Pill label="Align" active={aligning} night={night} onPress={startAlign} />
           <Pill label="Lines" active={lines} night={night} onPress={() => setLines((v) => !v)} />
           <Pill label="Names" active={labels} night={night} onPress={() => setLabels((v) => !v)} />
           <Pill label="Night" active={night} night={night} onPress={() => setNight((v) => !v)} />
@@ -209,6 +276,8 @@ export default function SkyScreen() {
           <Pill label="Tonight" night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => router.push('/tonight'))} />
         </ScrollView>
       </View>
+
+      <FindSheet visible={findOpen} catalog={catalog} onPick={pickFind} onClose={() => setFindOpen(false)} />
 
       <Modal visible={settingsOpen} animationType="slide" transparent onRequestClose={() => setSettingsOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setSettingsOpen(false)}>
@@ -229,9 +298,24 @@ export default function SkyScreen() {
                 <Text style={styles.settingHelp}>Fine-tune if known stars sit slightly left or right of where they should.</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Pill label="−5" onPress={() => setHeadingOffset((o) => Math.max(-45, o - 5))} />
-                <Pill label="+5" onPress={() => setHeadingOffset((o) => Math.min(45, o + 5))} />
+                <Pill label="−5" onPress={() => setHeadingOffset((o) => Math.max(-180, o - 5))} />
+                <Pill label="+5" onPress={() => setHeadingOffset((o) => Math.min(180, o + 5))} />
               </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingLabel}>Sky Align</Text>
+                <Text style={styles.settingHelp}>Re-run Align from the main screen any time. Reset clears what it learned.</Text>
+              </View>
+              <Pill
+                label="Reset"
+                onPress={() => {
+                  setHeadingOffset(0);
+                  setAltOffset(0);
+                  setInvertTilt(false);
+                }}
+              />
             </View>
 
             <View style={styles.settingRow}>

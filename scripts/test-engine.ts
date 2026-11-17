@@ -2,6 +2,7 @@ import * as Astronomy from 'astronomy-engine';
 import data from '../src/data/sky-data.json';
 import { precessToDate, horizonFromEquatorial, gastDegrees, computeStars, computeSolarSystem, tonightPlanner, toVec } from '../src/sky/engine';
 import { makeProjector } from '../src/sky/projection';
+import { angleDiff, buildCatalog, computeAlign, guideTo, locateEntry, pickAlignTarget, searchCatalog } from '../src/sky/align';
 import type { SkyData } from '../src/sky/types';
 
 const sky = data as unknown as SkyData;
@@ -71,6 +72,33 @@ ok('higher altitude appears above centre', up.y < 400, `y=${up.y.toFixed(1)}`);
 ok('object behind camera is culled', p.project(toVec(-35, 300)) === null);
 const edge = p.project(toVec(35 + 30, 120))!;
 ok('half-FOV up lands at top edge', Math.abs(edge.y - 0) < 1, `y=${edge.y.toFixed(1)}`);
+
+// 9. Sky Align, Find, guide arrow
+ok('angleDiff wraps across north', Math.abs(angleDiff(350, 10) - 20) < 1e-9 && Math.abs(angleDiff(10, 350) + 20) < 1e-9);
+const night = new Date('2026-11-14T16:00:00Z'); // evening in Delhi
+const tgt = pickAlignTarget(sky, night, obs);
+ok('align target found at night', !!tgt && tgt.alt >= 12, tgt ? `${tgt.name} alt=${tgt.alt.toFixed(0)}` : 'none');
+ok('align target is never the Sun', !!tgt && tgt.kind !== 'sun');
+const a0 = { headingOffset: 0, altOffset: 0, invertTilt: false };
+const a1 = computeAlign({ az: 100, alt: 40 }, 90, 38, a0);
+ok('align heading offset +10', Math.abs(a1.headingOffset - 10) < 0.11 && !a1.invertTilt, JSON.stringify(a1));
+ok('align alt offset +2', Math.abs(a1.altOffset - 2) < 0.11);
+const a2 = computeAlign({ az: 100, alt: 40 }, 100, -39, a0);
+ok('align detects flipped tilt sign', a2.invertTilt === true && a2.altOffset === 0, JSON.stringify(a2));
+const a3 = computeAlign({ az: 5, alt: 30 }, 355, 30, a0);
+ok('align heading wraps across north', Math.abs(a3.headingOffset - 10) < 0.11, JSON.stringify(a3));
+const cat = buildCatalog(sky);
+ok('catalogue has Sirius, Jupiter, M31', ['Sirius', 'Jupiter', 'M31'].every((n) => searchCatalog(cat, n).some((e) => e.name.startsWith(n))));
+const jup = cat.find((e) => e.id === 'Jupiter')!;
+const jl = locateEntry(sky, jup, night, obs)!;
+ok('locate Jupiter matches solar system', Math.abs(jl.alt - computeSolarSystem(night, obs).find((b) => b.id === 'Jupiter')!.alt) < 1e-6);
+const sir = cat.find((e) => e.name === 'Sirius')!;
+const sl = locateEntry(sky, sir, night, obs)!;
+ok('locate Sirius alt sane', sl.alt > -90 && sl.alt < 90, `alt=${sl.alt.toFixed(1)}`);
+const g = guideTo({ az: 0, alt: 0 }, { az: 90, alt: 0 });
+ok('guide: target to the east points right', Math.abs(g.angle - 90) < 1e-6 && Math.abs(g.dist - 90) < 1e-6);
+const g2 = guideTo({ az: 0, alt: 10 }, { az: 0, alt: 50 });
+ok('guide: target overhead points up', Math.abs(g2.angle) < 1e-6 && Math.abs(g2.dist - 40) < 1e-6);
 
 // 8. Perf
 const t0 = Date.now();

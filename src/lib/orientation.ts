@@ -21,12 +21,14 @@ export type DeviceView = {
  * or pointed straight up. `invertTilt` exists because accelerometer sign conventions differ between
  * platforms; it is exposed in the UI so it can be fixed on a real device without a rebuild.
  */
-export function useDeviceView(enabled: boolean, invertTilt: boolean, headingOffset: number): DeviceView {
+export function useDeviceView(enabled: boolean, invertTilt: boolean, headingOffset: number, altOffset = 0): DeviceView {
   const [view, setView] = useState<DeviceView>({ az: 0, alt: 20, status: 'starting', accuracy: 0 });
   const raw = useRef({ heading: null as number | null, alt: null as number | null, accuracy: 0 });
   const smooth = useRef({ sin: 0, cos: 1, alt: 20, init: false });
   const invert = useRef(invertTilt);
   invert.current = invertTilt;
+  const altOff = useRef(altOffset);
+  altOff.current = altOffset;
 
   useEffect(() => {
     if (!enabled) return;
@@ -69,7 +71,7 @@ export function useDeviceView(enabled: boolean, invertTilt: boolean, headingOffs
           s.alt += (alt - s.alt) * k;
           s.init = true;
           const az = (((Math.atan2(s.sin, s.cos) * R2D + headingOffset) % 360) + 360) % 360;
-          setView({ az, alt: s.alt, status: 'ok', accuracy });
+          setView({ az, alt: s.alt + altOff.current, status: 'ok', accuracy });
         }, 50);
       } catch {
         if (!cancelled) setView((v) => ({ ...v, status: 'unavailable' }));
