@@ -13,7 +13,7 @@ type ProContextValue = {
   ready: boolean;
   /** True when no RevenueCat key is set: purchases are disabled and a dev toggle is shown. */
   unconfigured: boolean;
-  openPaywall: () => Promise<boolean>;
+  openPaywall: (source?: string) => Promise<boolean>;
   restore: () => Promise<void>;
   manageSubscription: () => Promise<void>;
   /** Development only: flips Pro on and off so gated UI can be tested before RevenueCat is set up. */
@@ -37,6 +37,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
         if (__DEV__) await Purchases.setLogLevel(LOG_LEVEL.DEBUG);
         Purchases.configure({ apiKey: IOS_KEY });
         Purchases.addCustomerInfoUpdateListener((info) => active && setIsPro(hasPro(info)));
+        Purchases.setAttributes({ app: 'stargaze', platform: Platform.OS });
         const info = await Purchases.getCustomerInfo();
         if (active) setIsPro(hasPro(info));
       } catch (e) {
@@ -50,12 +51,14 @@ export function ProProvider({ children }: { children: ReactNode }) {
     };
   }, [unconfigured]);
 
-  const openPaywall = useCallback(async () => {
+  const openPaywall = useCallback(async (source = 'unknown') => {
     if (unconfigured) {
       Alert.alert('Purchases not set up', 'Add EXPO_PUBLIC_RC_IOS_KEY (see .env.example) and build a development client to test the RevenueCat paywall.');
       return false;
     }
     try {
+      // Lets RevenueCat segment conversions by where the paywall was opened from.
+      Purchases.setAttributes({ paywall_source: source });
       const result = await RevenueCatUI.presentPaywall();
       return result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED;
     } catch (e) {

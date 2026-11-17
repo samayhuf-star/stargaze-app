@@ -27,6 +27,8 @@ type Props = {
   observer: Observer;
   options: SkyOptions;
   selectedId: string | null;
+  /** Fast-moving objects (the ISS) computed by the parent every couple of seconds. */
+  extra?: SkyObject[];
   onSelect: (obj: SkyObject | null) => void;
 };
 
@@ -41,7 +43,7 @@ const CARDINALS: [string, number][] = [
   ['NW', 315],
 ];
 
-function SkyCanvasImpl({ width, height, view, date, observer, options, selectedId, onSelect }: Props) {
+function SkyCanvasImpl({ width, height, view, date, observer, options, selectedId, extra, onSelect }: Props) {
   // Sky positions only change meaningfully once a minute (0.25 deg), so recompute at that rate.
   const minuteKey = Math.floor(date.getTime() / 60000);
   const latKey = observer.lat.toFixed(2);
@@ -139,6 +141,22 @@ function SkyCanvasImpl({ width, height, view, date, observer, options, selectedI
         {b.kind === 'sun' && <Circle cx={p.x} cy={p.y} r={r * 2.2} fill={color} opacity={0.18} />}
         <Circle cx={p.x} cy={p.y} r={r} fill={color} />
         <SvgText x={p.x + r + 5} y={p.y + 4} fontSize={12} fontWeight="600" fill={night ? NIGHT_RED.label : '#ffffff'}>
+          {b.name}
+        </SvgText>
+      </G>,
+    );
+    hit.push({ obj: b, x: p.x, y: p.y });
+  }
+
+  for (const b of extra ?? []) {
+    if (b.alt < -1) continue;
+    const p = proj.project(b.v);
+    if (!p || p.x < -30 || p.x > width + 30 || p.y < -30 || p.y > height + 30) continue;
+    const c = night ? NIGHT_RED.planet : b.color;
+    bodyNodes.push(
+      <G key={b.id}>
+        <Path d={`M${p.x} ${p.y - 7} L${p.x + 7} ${p.y} L${p.x} ${p.y + 7} L${p.x - 7} ${p.y} Z`} fill={c} />
+        <SvgText x={p.x + 11} y={p.y + 4} fontSize={12} fontWeight="700" fill={night ? NIGHT_RED.label : c}>
           {b.name}
         </SvgText>
       </G>,

@@ -13,7 +13,7 @@ export type SkyData = {
 export type Vec3 = [e: number, n: number, u: number];
 
 export type SkyObject = {
-  kind: 'star' | 'planet' | 'sun' | 'moon' | 'dso';
+  kind: 'star' | 'planet' | 'sun' | 'moon' | 'dso' | 'sat';
   id: string;
   name: string;
   mag: number;

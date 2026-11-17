@@ -4,12 +4,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { searchCatalog, type SearchEntry } from '../sky/align';
 import { COLORS } from '../sky/theme';
 
-type Props = { visible: boolean; catalog: SearchEntry[]; onPick: (e: SearchEntry) => void; onClose: () => void };
+type Props = { visible: boolean; catalog: SearchEntry[]; favoriteIds?: string[]; onPick: (e: SearchEntry) => void; onClose: () => void };
 
-export function FindSheet({ visible, catalog, onPick, onClose }: Props) {
+export function FindSheet({ visible, catalog, favoriteIds = [], onPick, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
-  const results = useMemo(() => searchCatalog(catalog, q), [catalog, q]);
+  const results = useMemo(() => {
+    if (q.trim()) return searchCatalog(catalog, q);
+    const favs = favoriteIds.map((id) => catalog.find((e) => e.id === id)).filter((e): e is SearchEntry => !!e);
+    const rest = searchCatalog(catalog, '').filter((e) => !favoriteIds.includes(e.id));
+    return [...favs, ...rest];
+  }, [catalog, q, favoriteIds]);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -41,7 +46,7 @@ export function FindSheet({ visible, catalog, onPick, onClose }: Props) {
                   onPick(item);
                 }}
               >
-                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.name}>{favoriteIds.includes(item.id) ? '★ ' : ''}{item.name}</Text>
                 <Text style={styles.sub}>{item.sub}</Text>
               </Pressable>
             )}

@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useKeepAwake } from 'expo-keep-awake';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
+import { Linking } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
@@ -11,9 +12,13 @@ import { FindSheet } from '../components/FindSheet';
 import { GuideOverlay } from '../components/GuideOverlay';
 import { Pill } from '../components/Pill';
 import rawSky from '../data/sky-data.json';
+import { SUPPORT_EMAIL, TERMS_URL } from '../lib/config';
+import { useFavorites } from '../lib/favorites';
 import { useObserver } from '../lib/location';
+import { usePersisted } from '../lib/storage';
 import { useDeviceView } from '../lib/orientation';
 import { usePro } from '../lib/purchases';
+import { issObject, loadIssTle, makeSatrec } from '../sky/satellite';
 import { SkyCanvas, type SkyOptions } from '../sky/SkyCanvas';
 import { buildCatalog, computeAlign, guideTo, locateEntry, pickAlignTarget, type SearchEntry } from '../sky/align';
 import { clampAlt, makeProjector } from '../sky/projection';
@@ -46,6 +51,11 @@ export default function SkyScreen() {
   const [alignTarget, setAlignTarget] = useState<SkyObject | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [findEntry, setFindEntry] = useState<SearchEntry | null>(null);
+  const [onboarded, , onboardedLoaded] = usePersisted<boolean>('onboarded-v1', false);
+  const favorites = useFavorites();
+  const [issOn, setIssOn] = useState(false);
+  const [issRec, setIssRec] = useState<ReturnType<typeof makeSatrec> | null>(null);
+  const [issTick, setIssTick] = useState(() => Date.now());
   const [offsetMin, setOffsetMin] = useState(0);
   const [selected, setSelected] = useState<SkyObject | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -111,7 +121,23 @@ export default function SkyScreen() {
     [],
   );
 
+  useEffect(() => {
+    if (!issOn) return;
+    let alive = true;
+    if (!issRec) loadIssTle().then(({ tle }) => alive && setIssRec(makeSatrec(tle)));
+    const t = setInterval(() => setIssTick(Date.now()), 2000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [issOn, issRec]);
+
   const date = useMemo(() => new Date(now + offsetMin * 60000), [now, offsetMin]);
+  const issObj = useMemo(
+    () => (issOn && issRec ? issObject(issRec, new Date(issTick + offsetMin * 60000), observer) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [issOn, issRec, issTick, offsetMin, observer.lat.toFixed(2), observer.lon.toFixed(2)],
+  );
   const catalog = useMemo(() => buildCatalog(sky), []);
   const minuteKey = Math.floor(date.getTime() / 60000);
   const findTarget = useMemo(
@@ -170,9 +196,9 @@ export default function SkyScreen() {
   }, [camera, camPermission, requestCamPermission]);
 
   const requirePro = useCallback(
-    async (action: () => void) => {
+    async (action: () => void, source = 'feature') => {
       if (isPro) return action();
-      const bought = await openPaywall();
+      const bought = await openPaywall(source);
       if (bought) action();
     },
     [isPro, openPaywall],
@@ -194,6 +220,8 @@ export default function SkyScreen() {
       ? 'Now'
       : `${offsetMin > 0 ? '+' : '−'}${Math.floor(Math.abs(offsetMin) / 60)}h ${Math.abs(offsetMin) % 60}m · ${date.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`;
 
+  if (onboardedLoaded && !onboarded) return <Redirect href="/onboarding" />;
+
   return (
     <View style={styles.root} {...pan.panHandlers}>
       {showCamera && <CameraView style={StyleSheet.absoluteFill} facing="back" />}
@@ -207,6 +235,7 @@ export default function SkyScreen() {
         observer={observer}
         options={options}
         selectedId={aligning ? alignTarget?.id ?? null : selected?.id ?? findTarget?.id ?? null}
+        extra={issObj ? [issObj] : undefined}
         onSelect={setSelected}
       />
 
@@ -226,7 +255,7 @@ export default function SkyScreen() {
             </Text>
           </View>
           <View style={styles.topRight}>
-            {!isPro && <Pill label="PRO" onPress={openPaywall} active night={night} />}
+            {!isPro && <Pill label="PRO" onPress={() => openPaywall('pro_pill')} active night={night} />}
             <Pill label="⚙︎" onPress={() => setSettingsOpen(true)} night={night} />
           </View>
         </View>
@@ -237,7 +266,7 @@ export default function SkyScreen() {
 
       {/* Bottom controls */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 10 }]} pointerEvents="box-none">
-        {selected && <InfoCard obj={selected} night={night} />}
+        {selected && <InfoCard obj={selected} night={night} favorite={favorites.has(selected.id)} onToggleFavorite={() => favorites.toggle(selected.id)} />}
 
         <View style={styles.sliderRow}>
           <Text style={[styles.timeLabel, { color: night ? NIGHT_RED.label : COLORS.text }]}>{timeLabel}</Text>
@@ -259,7 +288,7 @@ export default function SkyScreen() {
           onSlidingComplete={async (v) => {
             if (!isPro && Math.abs(v) > FREE_TIME_LIMIT_MIN) {
               setOffsetMin(Math.sign(v) * FREE_TIME_LIMIT_MIN);
-              await openPaywall();
+              await openPaywall('time_travel');
             }
           }}
         />
@@ -272,12 +301,13 @@ export default function SkyScreen() {
           <Pill label="Lines" active={lines} night={night} onPress={() => setLines((v) => !v)} />
           <Pill label="Names" active={labels} night={night} onPress={() => setLabels((v) => !v)} />
           <Pill label="Night" active={night} night={night} onPress={() => setNight((v) => !v)} />
-          <Pill label="Messier" active={isPro && dsos} night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => setDsos((v) => !v))} />
-          <Pill label="Tonight" night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => router.push('/tonight'))} />
+          <Pill label="Messier" active={isPro && dsos} night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => setDsos((v) => !v), 'messier')} />
+          <Pill label="ISS" active={issOn} night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => setIssOn((v) => !v), 'iss')} />
+          <Pill label="Tonight" night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => router.push('/tonight'), 'tonight')} />
         </ScrollView>
       </View>
 
-      <FindSheet visible={findOpen} catalog={catalog} onPick={pickFind} onClose={() => setFindOpen(false)} />
+      <FindSheet visible={findOpen} catalog={catalog} favoriteIds={favorites.ids} onPick={pickFind} onClose={() => setFindOpen(false)} />
 
       <Modal visible={settingsOpen} animationType="slide" transparent onRequestClose={() => setSettingsOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setSettingsOpen(false)}>
@@ -326,6 +356,15 @@ export default function SkyScreen() {
               </View>
             </View>
 
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>About</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pill label="Privacy" onPress={() => { setSettingsOpen(false); router.push('/privacy'); }} />
+                <Pill label="Terms" onPress={() => Linking.openURL(TERMS_URL)} />
+                <Pill label="Support" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Stargaze%20support`)} />
+              </View>
+            </View>
+
             {__DEV__ && unconfigured && (
               <View style={styles.settingRow}>
                 <View style={{ flex: 1 }}>
@@ -336,7 +375,7 @@ export default function SkyScreen() {
               </View>
             )}
 
-            <Text style={styles.credit}>Star data: Hipparcos via d3-celestial (BSD). Positions: astronomy-engine (MIT).</Text>
+            <Text style={styles.credit}>Star data: Hipparcos via d3-celestial (BSD). Positions: astronomy-engine (MIT). ISS orbit: CelesTrak, SGP4 via satellite.js (MIT).</Text>
           </Pressable>
         </Pressable>
       </Modal>

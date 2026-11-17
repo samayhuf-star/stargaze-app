@@ -4,6 +4,8 @@ import { precessToDate, horizonFromEquatorial, gastDegrees, computeStars, comput
 import { makeProjector } from '../src/sky/projection';
 import { angleDiff, buildCatalog, computeAlign, guideTo, locateEntry, pickAlignTarget, searchCatalog } from '../src/sky/align';
 import type { SkyData } from '../src/sky/types';
+import { BUNDLED_ISS_TLE, issObject, makeSatrec, nextIssPass } from '../src/sky/satellite';
+import { upcomingShowers } from '../src/sky/showers';
 
 const sky = data as unknown as SkyData;
 let failed = 0;
@@ -104,6 +106,21 @@ ok('guide: target overhead points up', Math.abs(g2.angle) < 1e-6 && Math.abs(g2.
 const t0 = Date.now();
 for (let i = 0; i < 20; i++) computeStars(sky, new Date(date.getTime() + i * 60000), obs);
 console.log(`computeStars: ${((Date.now() - t0) / 20).toFixed(1)} ms per full-catalogue update`);
+
+// ---- ISS and meteor showers
+{
+  const rec = makeSatrec(BUNDLED_ISS_TLE);
+  const t0 = new Date('2024-11-16T12:00:00Z');
+  const iss = issObject(rec, t0, obs);
+  ok('ISS position computed', !!iss && iss.alt >= -90 && iss.alt <= 90 && iss.az >= 0 && iss.az < 360, iss ? `alt=${iss.alt.toFixed(1)} az=${iss.az.toFixed(1)}` : 'null');
+  const pass = nextIssPass(rec, t0, obs, 72);
+  ok('ISS pass found within 72h with sane geometry', !!pass && pass.set > pass.rise && pass.maxAlt >= 10 && pass.maxAlt <= 90, pass ? `max ${pass.maxAlt.toFixed(0)}` : 'none');
+  const sh = upcomingShowers(new Date('2026-11-17T00:00:00Z'), 3);
+  ok('showers: Leonids first on 17 Nov, then Geminids', sh[0].name === 'Leonids' && sh[1].name === 'Geminids', sh.map((x) => x.name).join(','));
+  ok('showers report Moon glare 0-100', sh.every((x) => x.moonLit >= 0 && x.moonLit <= 100));
+  const cat = buildCatalog(sky);
+  ok('search "sir" returns Sirius first', searchCatalog(cat, 'sir')[0]?.name === 'Sirius');
+}
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
