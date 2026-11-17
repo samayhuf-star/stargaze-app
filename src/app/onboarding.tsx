@@ -3,7 +3,7 @@ import { Camera } from 'expo-camera';
 import * as Location from 'expo-location';
 import { DeviceMotion } from 'expo-sensors';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArtAlign, ArtFind, ArtPlan, ArtSky } from '../components/OnboardArt';
@@ -60,9 +60,9 @@ export default function Onboarding() {
     await finish();
   };
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
+  const onViewable = useCallback(({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
     if (viewableItems[0]?.index != null) setIndex(viewableItems[0].index);
-  }).current;
+  }, []);
 
   const last = index === PAGES.length - 1;
 

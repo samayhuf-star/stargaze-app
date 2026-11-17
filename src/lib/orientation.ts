@@ -26,9 +26,11 @@ export function useDeviceView(enabled: boolean, invertTilt: boolean, headingOffs
   const raw = useRef({ heading: null as number | null, alt: null as number | null, accuracy: 0 });
   const smooth = useRef({ sin: 0, cos: 1, alt: 20, init: false });
   const invert = useRef(invertTilt);
-  invert.current = invertTilt;
   const altOff = useRef(altOffset);
-  altOff.current = altOffset;
+  useEffect(() => {
+    invert.current = invertTilt;
+    altOff.current = altOffset;
+  });
 
   useEffect(() => {
     if (!enabled) return;

@@ -1,10 +1,9 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Redirect, router } from 'expo-router';
-import { Linking } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Linking, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { InfoCard } from '../components/InfoCard';
 import { AlignBar } from '../components/AlignBar';
@@ -75,13 +74,15 @@ export default function SkyScreen() {
 
   // Keep refs so the PanResponder (created once) always sees current values.
   const viewRef = useRef(view);
-  viewRef.current = view;
   const fovRef = useRef(fov);
-  fovRef.current = fov;
   const heightRef = useRef(height);
-  heightRef.current = height;
   const liveRef = useRef(live);
-  liveRef.current = live;
+  useEffect(() => {
+    viewRef.current = view;
+    fovRef.current = fov;
+    heightRef.current = height;
+    liveRef.current = live;
+  });
 
   const pinch = useRef({ startDist: 0, startFov: 60 });
   const drag = useRef({ az: 0, alt: 0 });
@@ -90,6 +91,8 @@ export default function SkyScreen() {
 
   const pan = useMemo(
     () =>
+      // Handlers only read refs from touch events, never during render.
+      // eslint-disable-next-line react-hooks/refs
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) + Math.abs(g.dy) > 6,
         onPanResponderGrant: (e) => {
@@ -133,17 +136,19 @@ export default function SkyScreen() {
   }, [issOn, issRec]);
 
   const date = useMemo(() => new Date(now + offsetMin * 60000), [now, offsetMin]);
+  const latKey = observer.lat.toFixed(2);
+  const lonKey = observer.lon.toFixed(2);
   const issObj = useMemo(
     () => (issOn && issRec ? issObject(issRec, new Date(issTick + offsetMin * 60000), observer) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [issOn, issRec, issTick, offsetMin, observer.lat.toFixed(2), observer.lon.toFixed(2)],
+    [issOn, issRec, issTick, offsetMin, latKey, lonKey],
   );
   const catalog = useMemo(() => buildCatalog(sky), []);
   const minuteKey = Math.floor(date.getTime() / 60000);
   const findTarget = useMemo(
     () => (findEntry ? locateEntry(sky, findEntry, new Date(minuteKey * 60000), observer) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [findEntry, minuteKey, observer.lat.toFixed(2), observer.lon.toFixed(2)],
+    [findEntry, minuteKey, latKey, lonKey],
   );
 
   const startAlign = useCallback(() => {
