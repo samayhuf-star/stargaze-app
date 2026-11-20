@@ -46,7 +46,13 @@ export function useDeviceView(enabled: boolean, invertTilt: boolean, headingOffs
           if (!cancelled) setView((v) => ({ ...v, status: 'unavailable' }));
           return;
         }
-        await DeviceMotion.requestPermissionsAsync();
+        const perm = await DeviceMotion.requestPermissionsAsync();
+        if (!perm.granted) {
+          // Denied: fall back to manual exploration instead of staying on 'starting'.
+          if (!cancelled) setView((v) => ({ ...v, status: 'unavailable' }));
+          return;
+        }
+        if (cancelled) return;
         DeviceMotion.setUpdateInterval(50);
         motionSub = DeviceMotion.addListener((m) => {
           const g = m.accelerationIncludingGravity;
@@ -58,11 +64,18 @@ export function useDeviceView(enabled: boolean, invertTilt: boolean, headingOffs
           if (invert.current) s = -s;
           raw.current.alt = Math.asin(s) * R2D;
         });
-        headingSub = await Location.watchHeadingAsync((h) => {
+        const hs = await Location.watchHeadingAsync((h) => {
           const hd = h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
           raw.current.heading = hd;
           raw.current.accuracy = h.accuracy;
         });
+        if (cancelled) {
+          // Screen was left while setup was finishing: release what just started.
+          hs.remove();
+          motionSub?.remove();
+          return;
+        }
+        headingSub = hs;
         timer = setInterval(() => {
           const { heading, alt, accuracy } = raw.current;
           if (heading == null || alt == null) return;
