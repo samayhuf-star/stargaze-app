@@ -354,7 +354,10 @@ export default function SkyScreen() {
             </View>
 
             <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>Subscription</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingLabel}>Subscription</Text>
+                <Text style={styles.settingHelp}>{isPro ? 'Stargaze Pro is active' : 'Free plan'}</Text>
+              </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Pill label="Restore" onPress={restore} />
                 <Pill label="Manage" onPress={manageSubscription} />

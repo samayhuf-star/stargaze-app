@@ -1,7 +1,7 @@
 import Purchases, { LOG_LEVEL, type CustomerInfo } from 'react-native-purchases';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Platform } from 'react-native';
+import RevenueCatUI from 'react-native-purchases-ui';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, Modal, Platform, View } from 'react-native';
 
 /** Entitlement identifier configured in the RevenueCat dashboard. */
 export const PRO_ENTITLEMENT = 'pro';
@@ -28,6 +28,15 @@ export function ProProvider({ children }: { children: ReactNode }) {
   const unconfigured = Platform.OS !== 'ios' || IOS_KEY.length === 0;
   const [isPro, setIsPro] = useState(false);
   const [ready, setReady] = useState(unconfigured);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const paywallDone = useRef<((bought: boolean) => void) | null>(null);
+
+  /** Closes the paywall and settles the pending openPaywall() call. Safe to call twice. */
+  const closePaywall = useCallback((bought: boolean) => {
+    setPaywallOpen(false);
+    paywallDone.current?.(bought);
+    paywallDone.current = null;
+  }, []);
 
   useEffect(() => {
     if (unconfigured) return;
@@ -36,7 +45,14 @@ export function ProProvider({ children }: { children: ReactNode }) {
       try {
         if (__DEV__) await Purchases.setLogLevel(LOG_LEVEL.DEBUG);
         Purchases.configure({ apiKey: IOS_KEY });
-        Purchases.addCustomerInfoUpdateListener((info) => active && setIsPro(hasPro(info)));
+        Purchases.addCustomerInfoUpdateListener((info) => {
+          if (!active) return;
+          const pro = hasPro(info);
+          setIsPro(pro);
+          // A purchase can land here before the paywall reports it, so never
+          // leave the paywall on screen once Pro is active.
+          if (pro) closePaywall(true);
+        });
         Purchases.setAttributes({ app: 'stargaze', platform: Platform.OS });
         const info = await Purchases.getCustomerInfo();
         if (active) setIsPro(hasPro(info));
@@ -49,22 +65,22 @@ export function ProProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [unconfigured]);
+  }, [unconfigured, closePaywall]);
 
   const openPaywall = useCallback(async (source = 'unknown') => {
     if (unconfigured) {
       Alert.alert('Purchases not set up', 'Add EXPO_PUBLIC_RC_IOS_KEY (see .env.example) and build a development client to test the RevenueCat paywall.');
       return false;
     }
-    try {
-      // Lets RevenueCat segment conversions by where the paywall was opened from.
-      Purchases.setAttributes({ paywall_source: source });
-      const result = await RevenueCatUI.presentPaywall();
-      return result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED;
-    } catch (e) {
-      console.warn('Paywall failed', e);
-      return false;
-    }
+    // Lets RevenueCat segment conversions by where the paywall was opened from.
+    Purchases.setAttributes({ paywall_source: source });
+    // The paywall is hosted in our own modal so it always closes the moment a
+    // purchase or restore succeeds, instead of waiting on the native sheet.
+    paywallDone.current?.(false);
+    return new Promise<boolean>((resolve) => {
+      paywallDone.current = resolve;
+      setPaywallOpen(true);
+    });
   }, [unconfigured]);
 
   const restore = useCallback(async () => {
@@ -89,7 +105,30 @@ export function ProProvider({ children }: { children: ReactNode }) {
     () => ({ isPro, ready, unconfigured, openPaywall, restore, manageSubscription, devTogglePro: () => setIsPro((p) => !p) }),
     [isPro, ready, unconfigured, openPaywall, restore, manageSubscription],
   );
-  return <ProContext.Provider value={value}>{children}</ProContext.Provider>;
+  return (
+    <ProContext.Provider value={value}>
+      {children}
+      <Modal visible={paywallOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => closePaywall(false)}>
+        <View style={{ flex: 1, backgroundColor: '#070b1e' }}>
+          {paywallOpen && (
+            <RevenueCatUI.Paywall
+              options={{ displayCloseButton: true }}
+              onPurchaseCompleted={({ customerInfo }) => {
+                setIsPro(hasPro(customerInfo));
+                closePaywall(true);
+              }}
+              onRestoreCompleted={({ customerInfo }) => {
+                const pro = hasPro(customerInfo);
+                setIsPro(pro);
+                if (pro) closePaywall(true);
+              }}
+              onDismiss={() => closePaywall(false)}
+            />
+          )}
+        </View>
+      </Modal>
+    </ProContext.Provider>
+  );
 }
 
 export function usePro(): ProContextValue {
