@@ -6,7 +6,12 @@ import { Alert, Platform } from 'react-native';
 /** Entitlement identifier configured in the RevenueCat dashboard. */
 export const PRO_ENTITLEMENT = 'pro';
 
-const IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY ?? '';
+const RC_KEY =
+  Platform.OS === 'ios'
+    ? (process.env.EXPO_PUBLIC_RC_IOS_KEY ?? '')
+    : Platform.OS === 'android'
+      ? (process.env.EXPO_PUBLIC_RC_ANDROID_KEY ?? 'goog_SsTyyBVVjniZIrZksMKieAlGEhB')
+      : '';
 
 type ProContextValue = {
   isPro: boolean;
@@ -25,7 +30,7 @@ const ProContext = createContext<ProContextValue | null>(null);
 const hasPro = (info: CustomerInfo) => info.entitlements.active[PRO_ENTITLEMENT] !== undefined;
 
 export function ProProvider({ children }: { children: ReactNode }) {
-  const unconfigured = Platform.OS !== 'ios' || IOS_KEY.length === 0;
+  const unconfigured = RC_KEY.length === 0;
   const [isPro, setIsPro] = useState(false);
   const [ready, setReady] = useState(unconfigured);
 
@@ -35,7 +40,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         if (__DEV__) await Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-        Purchases.configure({ apiKey: IOS_KEY });
+        Purchases.configure({ apiKey: RC_KEY });
         Purchases.addCustomerInfoUpdateListener((info) => active && setIsPro(hasPro(info)));
         Purchases.setAttributes({ app: 'stargaze', platform: Platform.OS });
         const info = await Purchases.getCustomerInfo();
