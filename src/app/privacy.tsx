@@ -10,6 +10,7 @@ const SECTIONS: [string, string][] = [
   ['Motion and compass', 'Motion sensors and the compass match the map to where you point your phone. Readings stay on the device.'],
   ['Satellite data', 'When you are online, the app downloads the public orbital elements of the International Space Station from CelesTrak. That request contains no personal information.'],
   ['Purchases', 'Subscriptions are handled by Apple. We use RevenueCat to confirm whether you have Pro. RevenueCat receives an anonymous app user ID and purchase status, not your name or location.'],
+  ['Notifications', 'If you say yes to sky alerts, we use OneSignal to send event reminders such as the Geminids peak. OneSignal receives a device push token and an anonymous ID, not your name or location. You can turn alerts off any time in Settings.'],
   ['Saved items', 'Favourites and settings are stored only on your device.'],
   ['Children', 'Stargaze is suitable for all ages and does not knowingly collect data from anyone.'],
   ['Contact', `Questions: ${SUPPORT_EMAIL}`],

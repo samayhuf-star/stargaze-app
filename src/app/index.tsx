@@ -17,6 +17,7 @@ import { useObserver } from '../lib/location';
 import { usePersisted } from '../lib/storage';
 import { useDeviceView } from '../lib/orientation';
 import { usePro } from '../lib/purchases';
+import { CONSENT_KEY, GEMINIDS_KEY, declinePushConsent, grantPushConsent, initPushIfConsented, setGeminidsReminder, type Consent } from '../lib/push';
 import { issObject, loadIssTle, makeSatrec } from '../sky/satellite';
 import { SkyCanvas, type SkyOptions } from '../sky/SkyCanvas';
 import { buildCatalog, computeAlign, guideTo, locateEntry, pickAlignTarget, type SearchEntry } from '../sky/align';
@@ -51,6 +52,8 @@ export default function SkyScreen() {
   const [findOpen, setFindOpen] = useState(false);
   const [findEntry, setFindEntry] = useState<SearchEntry | null>(null);
   const [onboarded, , onboardedLoaded] = usePersisted<boolean>('onboarded-v1', false);
+  const [consent, setConsent, consentLoaded] = usePersisted<Consent>(CONSENT_KEY, undefined);
+  const [geminids, setGeminids] = usePersisted<boolean>(GEMINIDS_KEY, false);
   const favorites = useFavorites();
   const [issOn, setIssOn] = useState(false);
   const [issRec, setIssRec] = useState<ReturnType<typeof makeSatrec> | null>(null);
@@ -199,6 +202,44 @@ export default function SkyScreen() {
     }
     setCamera(true);
   }, [camera, camPermission, requestCamPermission]);
+
+  // Push: OneSignal starts only after consent, and consent is asked only once onboarding is done.
+  useEffect(() => {
+    if (!onboardedLoaded || !consentLoaded || !onboarded) return;
+    if (consent === 'granted') {
+      initPushIfConsented();
+      return;
+    }
+    if (consent !== undefined) return;
+    const t = setTimeout(() => {
+      Alert.alert(
+        'Sky alerts?',
+        'Get a heads-up for the Geminids peak (13–14 Dec), bright ISS passes and other sky events. You can turn this off any time.',
+        [
+          { text: 'Not now', style: 'cancel', onPress: () => { declinePushConsent(); setConsent('declined'); } },
+          {
+            text: 'Yes, notify me',
+            onPress: async () => {
+              setConsent('granted');
+              await grantPushConsent();
+              setGeminids(await setGeminidsReminder(true));
+            },
+          },
+        ],
+      );
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [onboarded, onboardedLoaded, consent, consentLoaded, setConsent, setGeminids]);
+
+  const toggleGeminids = useCallback(
+    async (on: boolean) => {
+      const result = await setGeminidsReminder(on);
+      if (on) setConsent('granted');
+      setGeminids(result);
+      if (on && !result) Alert.alert('Notifications are off', 'Allow notifications for Stargaze in Settings to get the Geminids reminder.');
+    },
+    [setConsent, setGeminids],
+  );
 
   const requirePro = useCallback(
     async (action: () => void, source = 'feature') => {
@@ -351,6 +392,14 @@ export default function SkyScreen() {
                   setInvertTilt(false);
                 }}
               />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingLabel}>Geminids reminder</Text>
+                <Text style={styles.settingHelp}>A notification on 13 Dec, the peak night of the year&apos;s best meteor shower.</Text>
+              </View>
+              <Switch value={geminids} onValueChange={toggleGeminids} />
             </View>
 
             <View style={styles.settingRow}>

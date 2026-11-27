@@ -2,6 +2,7 @@ import Purchases, { LOG_LEVEL, type CustomerInfo } from 'react-native-purchases'
 import RevenueCatUI from 'react-native-purchases-ui';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Modal, Platform, View } from 'react-native';
+import { Paywall } from '../components/Paywall';
 
 /** Entitlement identifier configured in the RevenueCat dashboard. */
 export const PRO_ENTITLEMENT = 'pro';
@@ -111,18 +112,17 @@ export function ProProvider({ children }: { children: ReactNode }) {
       <Modal visible={paywallOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => closePaywall(false)}>
         <View style={{ flex: 1, backgroundColor: '#070b1e' }}>
           {paywallOpen && (
-            <RevenueCatUI.Paywall
-              options={{ displayCloseButton: true }}
-              onPurchaseCompleted={({ customerInfo }) => {
-                setIsPro(hasPro(customerInfo));
+            <Paywall
+              onPurchased={(info) => {
+                setIsPro(hasPro(info));
                 closePaywall(true);
               }}
-              onRestoreCompleted={({ customerInfo }) => {
-                const pro = hasPro(customerInfo);
+              onRestored={(info) => {
+                const pro = hasPro(info);
                 setIsPro(pro);
                 if (pro) closePaywall(true);
               }}
-              onDismiss={() => closePaywall(false)}
+              onClose={() => closePaywall(false)}
             />
           )}
         </View>
