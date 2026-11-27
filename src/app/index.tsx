@@ -24,6 +24,7 @@ import { buildCatalog, computeAlign, guideTo, locateEntry, pickAlignTarget, type
 import { clampAlt, makeProjector } from '../sky/projection';
 import { COLORS, NIGHT_RED } from '../sky/theme';
 import type { SkyData, SkyObject, View as SkyView } from '../sky/types';
+import { noteSuccess } from '../lib/reviewPrompt';
 
 const sky = rawSky as unknown as SkyData;
 const FREE_TIME_LIMIT_MIN = 60;
@@ -184,6 +185,7 @@ export default function SkyScreen() {
       const t = locateEntry(sky, e, new Date(now + offsetMin * 60000), observer);
       if (t && t.alt >= 0) {
         setSelected(t);
+        noteSuccess(3); // rating prompt after the 3rd object found in the sky
         // Without live sensors, jump the map straight to the object.
         if (!(live && device.status === 'ok')) {
           setLive(false);

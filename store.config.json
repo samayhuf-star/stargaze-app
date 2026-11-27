@@ -1,0 +1,35 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "categories": [
+      "REFERENCE",
+      "EDUCATION"
+    ],
+    "info": {
+      "en-US": {
+        "title": "Stargaze: Sky Map Star Finder",
+        "subtitle": "Constellations, planets & ISS",
+        "description": "Hold up your iPhone and see which stars, planets, constellations and the ISS are in front of you. Tap once to line the map up with the real sky.\n\nSearch for any object and follow the arrow. Tonight's list shows what is worth looking at from where you are, in a dark theme that protects your night vision.\n\nStart free, then unlock the deeper catalogue, ISS flyover times and a longer time-travel window with Stargaze Pro.\n\nSKY ALIGN\nTap once and Stargaze lines the map up with the real sky, so what you see on screen matches what is overhead.\n\nFIND ANYTHING\nSearch for any star, planet, constellation or the International Space Station and follow the arrow to it.\n\nTONIGHT\nA short list of what is worth looking at tonight, based on where you are, including rise and set times on Pro.\n\nDESIGNED FOR THE NIGHT\nA dark, easy-on-the-eyes look that keeps your night vision. Use the camera view and night mode when you want the sky overlaid on the real one.\n\nWHAT IS FREE\n• Live sky with stars to magnitude 4.5.\n• Constellations, planets, Sun and Moon.\n• Sky Align, Find, and the pointing arrow.\n• Camera view and night mode.\n• Favourites and a meteor shower calendar.\n• Time travel of ±1 hour.\n\nSTARGAZE PRO\nUnlock more of the sky with an auto-renewing weekly subscription that starts with a 7-day free trial:\n• About 2,850 stars (to magnitude 5.5).\n• 110 Messier deep-sky objects.\n• Live ISS tracking and flyover times.\n• Tonight planner with rise and set times.\n• Time travel of ±12 hours.\n\nPayment is charged to your Apple ID at confirmation of purchase after the trial. The subscription renews automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel any time in your Apple ID settings. Prices are shown in the app and may vary by country.\n\nTerms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/\nPrivacy Policy: https://klenzer.online/stargaze/privacy/",
+        "keywords": [
+          "astronomy",
+          "stargazing",
+          "night",
+          "telescope",
+          "satellite",
+          "moon",
+          "galaxy",
+          "space",
+          "tonight",
+          "meteor",
+          "orion",
+          "zodiac",
+          "live",
+          "ar"
+        ],
+        "promoText": "Hold up your iPhone and match the map to the real sky. Find planets, constellations and the ISS, plus a short list of what is worth seeing tonight.",
+        "supportUrl": "https://klenzer.online/stargaze/support/",
+        "privacyPolicyUrl": "https://klenzer.online/stargaze/privacy/"
+      }
+    }
+  }
+}
