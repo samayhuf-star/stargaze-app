@@ -6,7 +6,8 @@ import { router } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArtAlign, ArtFind, ArtPlan, ArtSky } from '../components/OnboardArt';
+import { ArtAlign, ArtBell, ArtCamera, ArtFind, ArtMeteors, ArtPlan, ArtSky, ArtTonight } from '../components/OnboardArt';
+import { declinePushConsent, grantPushConsent } from '../lib/push';
 import { writeJson } from '../lib/storage';
 import { usePro } from '../lib/purchases';
 import { COLORS } from '../sky/theme';
@@ -14,16 +15,24 @@ import { COLORS } from '../sky/theme';
 type Page =
   | { kind: 'intro'; title: string; body: string; Art: () => React.JSX.Element }
   | { kind: 'permissions' }
+  | { kind: 'notifications' }
   | { kind: 'plans' };
 
 const PAGES: Page[] = [
-  { kind: 'intro', title: 'The sky, right above you', body: 'Hold your phone up and see every star, planet and constellation exactly where it is. Works offline.', Art: ArtSky },
+  { kind: 'intro', title: 'Find any star or planet', body: 'Hold your phone up and see every star, planet and constellation exactly where it is. Works offline.', Art: ArtSky },
   { kind: 'intro', title: 'The map that points the right way', body: 'Sky Align lines the map up with the real sky in one tap, so you never have to guess which way is north.', Art: ArtAlign },
-  { kind: 'intro', title: 'Find anything, then follow the arrow', body: 'Search a planet, star or Messier object and an arrow turns you toward it.', Art: ArtFind },
-  { kind: 'intro', title: 'Plan your night', body: 'See what is up tonight, when the ISS flies over, and which meteor showers are coming. No ads, ever.', Art: ArtPlan },
+  { kind: 'intro', title: 'Search, then follow the arrow', body: 'Type a planet, star or Messier object and an arrow turns you straight toward it.', Art: ArtFind },
+  { kind: 'intro', title: 'See it through your camera', body: 'AR mode labels the real sky behind your camera, so the dot you see is the star you are looking at.', Art: ArtCamera },
+  { kind: 'intro', title: "Tonight's sky, planned", body: 'Which planets are up, when they rise and set, and how bright the Moon is. No ads, ever.', Art: ArtTonight },
+  { kind: 'intro', title: 'Catch the Geminids', body: 'The best meteor shower of the year peaks on 13–14 December. Stargaze shows you where to look and when.', Art: ArtMeteors },
+  { kind: 'intro', title: 'Spot the Space Station', body: 'Track the ISS live and get its next visible passes over your location.', Art: ArtPlan },
   { kind: 'permissions' },
+  { kind: 'notifications' },
   { kind: 'plans' },
 ];
+
+/** Read by the autopilot panel. */
+export const ONBOARDING_SCREENS = PAGES.length;
 
 const FREE = ['Live sky with stars to magnitude 4.5', 'Constellations, planets, Sun and Moon', 'Sky Align, Find and the pointing arrow', 'Camera view and Night mode', 'Favourites and meteor shower calendar', 'Time travel ±1 hour'];
 const PRO = ['Everything in Free', 'About 2,850 stars (to magnitude 5.5)', '110 Messier deep-sky objects', 'Live ISS tracking and flyover times', 'Tonight planner with rise and set times', 'Time travel ±12 hours'];
@@ -53,6 +62,14 @@ export default function Onboarding() {
       /* the main screen explains any denied permission */
     }
     setGranted(true);
+    next();
+  };
+  const notifyOn = async () => {
+    await grantPushConsent();
+    next();
+  };
+  const notifyOff = async () => {
+    await declinePushConsent();
     next();
   };
   const tryPro = async () => {
@@ -107,6 +124,13 @@ export default function Onboarding() {
                 </View>
               </View>
             )}
+            {item.kind === 'notifications' && (
+              <View style={styles.page}>
+                <ArtBell />
+                <Text style={styles.title}>Never miss a sky event</Text>
+                <Text style={styles.body}>Get a heads-up for meteor shower peaks, ISS flyovers and bright planets. A few a month, no spam.</Text>
+              </View>
+            )}
             {item.kind === 'plans' && (
               <View style={styles.page}>
                 <Text style={styles.title}>What you get</Text>
@@ -132,6 +156,13 @@ export default function Onboarding() {
           <>
             <Button label={granted ? 'Continue' : 'Allow and continue'} onPress={granted ? next : allow} />
             <Pressable onPress={next} hitSlop={10} accessibilityRole="button">
+              <Text style={styles.link}>Not now</Text>
+            </Pressable>
+          </>
+        ) : PAGES[index].kind === 'notifications' ? (
+          <>
+            <Button label="Turn on reminders" onPress={notifyOn} />
+            <Pressable onPress={notifyOff} hitSlop={10} accessibilityRole="button">
               <Text style={styles.link}>Not now</Text>
             </Pressable>
           </>

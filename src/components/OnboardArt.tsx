@@ -84,3 +84,55 @@ export const ArtPlan = () => (
     <SvgText x="140" y="252" fill="#e8efff" fontSize="14" fontWeight="700" textAnchor="middle">ISS passes · Meteor showers</SvgText>
   </Frame>
 );
+
+/** Phone held up to the sky with the camera behind the map: AR view. */
+export const ArtCamera = () => (
+  <Frame seed={71}>
+    <Rect x="92" y="46" width="96" height="176" rx="18" fill="#0a1024" stroke="#7fb2ff" strokeWidth="2.5" />
+    <Path d="M100 160 Q140 140 180 156 V212 H100 Z" fill="#1c2a45" />
+    <Path d="M112 96 L136 82 L160 100 L172 86" stroke="#7fb2ff" strokeOpacity="0.8" strokeWidth="1.8" fill="none" />
+    {[[112, 96], [136, 82], [160, 100], [172, 86]].map(([x, y], i) => (
+      <Circle key={i} cx={x} cy={y} r={3} fill="#fff7e0" />
+    ))}
+    <SvgText x="140" y="128" fill="#e8efff" fontSize="10" fontWeight="700" textAnchor="middle">Cassiopeia</SvgText>
+    <SvgText x="140" y="254" fill="#e8efff" fontSize="14" fontWeight="700" textAnchor="middle">Live camera + star labels</SvgText>
+  </Frame>
+);
+
+/** Tonight list: planets with rise times. */
+export const ArtTonight = () => (
+  <Frame seed={83}>
+    {[['Jupiter', '19:42 rise', '#ffe3b3'], ['Saturn', 'up now', '#f3d9a0'], ['Moon', '62% lit', '#f3efe0'], ['Mars', '23:10 rise', '#ffb08a']].map(([n, t, c], i) => (
+      <G key={n}>
+        <Rect x="44" y={50 + i * 44} width="192" height="34" rx="12" fill="#0c1226" stroke="#7fb2ff" strokeOpacity="0.35" />
+        <Circle cx="66" cy={67 + i * 44} r="7" fill={c} />
+        <SvgText x="82" y={72 + i * 44} fill="#e8efff" fontSize="13" fontWeight="700">{n}</SvgText>
+        <SvgText x="224" y={72 + i * 44} fill="#9fb3dd" fontSize="12" textAnchor="end">{t}</SvgText>
+      </G>
+    ))}
+    <SvgText x="140" y="246" fill="#e8efff" fontSize="14" fontWeight="700" textAnchor="middle">What&apos;s up tonight</SvgText>
+  </Frame>
+);
+
+/** Meteor shower radiant: Geminids. */
+export const ArtMeteors = () => (
+  <Frame seed={97}>
+    <Circle cx="190" cy="80" r="16" fill="url(#glow)" />
+    {[[175, 95, 60, 170], [182, 100, 120, 220], [200, 98, 230, 190], [170, 80, 70, 110], [205, 75, 255, 120]].map(([x1, y1, x2, y2], i) => (
+      <Line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff7e0" strokeWidth={2.6 - i * 0.3} strokeLinecap="round" opacity={0.95 - i * 0.12} />
+    ))}
+    <SvgText x="140" y="254" fill="#e8efff" fontSize="14" fontWeight="700" textAnchor="middle">Geminids · peak 13–14 Dec</SvgText>
+  </Frame>
+);
+
+/** Bell with a star: notification reminders. */
+export const ArtBell = () => (
+  <Frame seed={109}>
+    <Circle cx="140" cy="128" r="60" fill="url(#glow)" opacity="0.35" />
+    <Path d="M100 160 Q100 96 140 90 Q180 96 180 160 L192 176 H88 Z" fill="#7fb2ff" />
+    <Circle cx="140" cy="186" r="10" fill="#7fb2ff" />
+    <Path d="M140 112 L145 124 L158 125 L148 133 L151 146 L140 139 L129 146 L132 133 L122 125 L135 124 Z" fill="#fff7e0" />
+    <Rect x="54" y="222" width="172" height="32" rx="14" fill="#0c1226" stroke="#7fb2ff" strokeOpacity="0.5" />
+    <SvgText x="140" y="243" fill="#e8efff" fontSize="12" fontWeight="700" textAnchor="middle">ISS overhead in 5 min</SvgText>
+  </Frame>
+);
